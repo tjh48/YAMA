@@ -17,10 +17,10 @@ the GNU General Public License along with this program. If not, see <http://www.
 
 
 Example input (single-end reads)
-perl yama_0.6.6.pl -x referenceGenome.fasta -Q sequencedRead.fastq -o myDir -n myOutputs --bowtie2="-p 16 -k 50"
+perl yama.pl -x referenceGenome.fasta -Q sequencedRead.fastq -o myDir -n myOutputs --bowtie2="-p 16 -k 50"
 
 Example input (paired-end reads)
-perl yama_0.6.6.pl -x referenceGenome.fasta -1 pair1.fastq -2 pair2.fastq -o myDir -n myOutputs --bowtie2="-p 16 -X 1500 -I 300 -k 50 --no-mixed --no-discordant"
+perl yama.pl -x referenceGenome.fasta -1 pair1.fastq -2 pair2.fastq -o myDir -n myOutputs --bowtie2="-p 16 -X 1500 -I 300 -k 50 --no-mixed --no-discordant"
 
 Essential parameters
 
