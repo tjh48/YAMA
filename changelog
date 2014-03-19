@@ -1,0 +1,8 @@
+Version 0.6.7
+	Moved all the work into subroutines, recovery from temporary files smoother, added parallelisation and memory options to sort.
+
+Version 0.6.6
+	Sorting moved into temporary directory specified by user to prevent swap space running out.
+
+Version 0.6.5
+	First public release of YAMA.
