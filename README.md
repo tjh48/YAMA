@@ -15,7 +15,6 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  You should have received a copy of 
 the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-
 Example input (single-end reads)
 
 perl yama.pl -x referenceGenome.fasta -Q sequencedRead.fastq -o myDir -n myOutputs --bowtie2="-p 16 -k 50"
@@ -33,6 +32,13 @@ Essential parameters
 -n   prefix to output files
 
 Optional parameters/flags
+
+-Q A comma-separated list of fastq files.
+
+-1 A comma-separated list of fastq files, paired with -2.
+
+-2 A comma-separated list of fastq files, paired with -1.
+
 --useBowtie - use bowtie rather than bowtie2 aligner.
 
 --bowtie2 - options for bowtie2 aligner - consult bowtie2 manual for details.
@@ -50,6 +56,10 @@ Optional parameters/flags
 --no-split - don't split the final output files by methylation context. Defaults to off.
 
 -t - name of the temporary directory to be used by YAMA. If not given, defaults to 'myDir/yama_tmp_myOutputs'
+
+-p - the number of parallel processors used by the 'sort' system call. If not specified, will steal the number from the bowtie or bowtie2 options if it is given here.
+
+-S - the memory limit for the 'sort' system call. Defaults to 50% of available memory; see the man pages of 'sort' for options.
 
 YAMA will create a conversion of the reference genome in the same location as the reference genome file called:
 referenceGenome.fasta_methConvert (and associated bowtie2-index files)
