@@ -25,7 +25,7 @@ Why is YAMA?
 
 YAMA is designed to produce output optimised for downstream visualisation, methylation locus detection, and differential methylation analyses using the R package segmentSeq. For a general introduction to processing of BS-Seq data, see Hardcastle (2013), Plant Methods, 9:16 (doi:10.1186/1746-4811-9-16).
 
-Principle features of YAMA:
+Principal features of YAMA:
 
 YAMA performs fast unbiased alignment (using C-T conversion) from FASTQ files
 
@@ -38,6 +38,7 @@ Paired-end (Bowtie2 only) and single-end data are supported.
 The output produced may be context (CpG, CHG and CHH) dependent (default) or independent.
 
 Alignment of multireads is permitted, with the base-calling being weighted by the number of locations to which the multiread aligns.
+
 
 
 
