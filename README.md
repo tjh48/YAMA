@@ -28,17 +28,11 @@ YAMA is designed to produce output optimised for downstream visualisation, methy
 Principal features of YAMA:
 
 YAMA performs fast unbiased alignment (using C-T conversion) from FASTQ files
-
 Alignment with either Bowtie or Bowtie2 aligner is supported.
-
 (Almost) all options of Bowtie(2) may be specified in the alignment, allowing for gapped alignment, flexibility of seed length, choice of mismatches, et cetera.
-
 Paired-end (Bowtie2 only) and single-end data are supported.
-
 The output produced may be context (CpG, CHG and CHH) dependent (default) or independent.
-
 Alignment of multireads is permitted, with the base-calling being weighted by the number of locations to which the multiread aligns.
-
 
 
 
