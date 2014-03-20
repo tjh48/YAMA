@@ -15,6 +15,32 @@ but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  You should have received a copy of 
 the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+What is YAMA?
+
+YAMA is a *-nix based perl script that performs unbiased alignment and calling of bisulphite treated sequencing (BS-Seq) data. It is released under the GPL-3 licence.
+
+Yama is the lord of death as described in the Vedas, a religously inclined llama, a "largely forgettable" 1979 album of flugelhorn music, and a security module for the Linux kernel. If you are looking for these, or any other Yama, you are probably in the wrong place.
+
+Why is YAMA?
+
+YAMA is designed to produce output optimised for downstream visualisation, methylation locus detection, and differential methylation analyses using the R package segmentSeq. For a general introduction to processing of BS-Seq data, see Hardcastle (2013), Plant Methods, 9:16 (doi:10.1186/1746-4811-9-16).
+
+Principle features of YAMA:
+
+YAMA performs fast unbiased alignment (using C-T conversion) from FASTQ files
+
+Alignment with either Bowtie or Bowtie2 aligner is supported.
+
+(Almost) all options of Bowtie(2) may be specified in the alignment, allowing for gapped alignment, flexibility of seed length, choice of mismatches, et cetera.
+
+Paired-end (Bowtie2 only) and single-end data are supported.
+
+The output produced may be context (CpG, CHG and CHH) dependent (default) or independent.
+
+Alignment of multireads is permitted, with the base-calling being weighted by the number of locations to which the multiread aligns.
+
+
+
 Example input (single-end reads)
 
 perl yama.pl -x referenceGenome.fasta -Q sequencedRead.fastq -o myDir -n myOutputs --bowtie2="-p 16 -k 50"
