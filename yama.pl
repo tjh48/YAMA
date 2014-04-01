@@ -712,7 +712,7 @@ printlog "Sort memory usages: -S $sort_memory\n";
 
 my $bowalignFile =  $temp_dir.'/'.$result_name.'_meth.bowalign' ;
 my $baseCountFile = $temp_dir.'/'.$result_name."_basecount";
-my $baseCountDupFile = $baseCountFile; $baseCountDupFile =~ s/basecount$/basecount_duplication/;
+my $baseCountDupFile = $baseCountFile; $baseCountDupFile =~ s/basecount/basecount_duplication/;
 my $baseCountSortFile = $baseCountFile; $baseCountSortFile =~ s/basecount/basecount_sort/;
 
 unless(-e $baseCountSortFile) {    
