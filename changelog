@@ -1,3 +1,6 @@
+Version 0.6.8
+	Bowtie(2) processing now writes to multiple files, split by chromosome, strand, context, and 10^7 bases. This reduces the difficulty of sort and allows it to be moved back into temporary filespace.
+
 Version 0.6.7
 	Moved all the work into subroutines, recovery from temporary files smoother, added parallelisation and memory options to sort.
 

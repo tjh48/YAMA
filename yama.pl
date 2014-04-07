@@ -1,4 +1,6 @@
-#YAMA 0.6.7
+#!/usr/bin/env/perl
+
+#YAMA 0.6.8
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -14,31 +16,30 @@
 #    <http://www.gnu.org/licenses/>.
 
 
-#!/usr/bin/perl
 use List::Util qw(min);
 use File::Path 'rmtree';
 
 use strict ;
 use warnings;
 use Getopt::Long;
-#!/usr/bin/env perl
 $| = 1;
 
 my $logfile;
+my $logFH;
 
 sub printlog {
     my $message = pop(@_);
     print $message;
-    open(my $logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
+#    open(my $logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
     print {$logFH} $message;
-    close($logFH);
+#    close($logFH);
 }
 
 sub dielog {
     my $message = pop(@_);
-    open(my $logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
+#    open(my $logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
     print {$logFH} $message;
-    close($logFH);
+#    close($logFH);
     die $message;
 }
 
@@ -195,8 +196,6 @@ sub processBase {
    
     my($genome_ref, $item_chr, $item_strand, $item_start, $seqLen, $Clocs_ref) = @_;
 
-    my $baseCountFH;
-    my $baseCountDupFH;
     my @Cpos;
     my @Ctype;
     my @referenceSeq;  
@@ -239,7 +238,10 @@ sub identifyType {
 # This is the subroutine for printing out the best of bowtie alignments    
 
 sub onlyTheBest {
-    my ($baseCountFH, $baseCountDupFH, $paired, $genome_ref, $alignList_ref, $recordDupFlag) = @_;    
+    my ($baseCountFHHash, #$baseCountDupFHHash, 
+	$baseCountDir, 
+	# $baseCountDupDir, 
+	$paired, $genome_ref, $alignList_ref, $recordDupFlag, $nosplit_flag) = @_;    
     my $minqual;
     my $outline = "";
 
@@ -305,14 +307,32 @@ sub onlyTheBest {
 	foreach my $Cloc (@Clocs) {
 	    my $basePos = $Cloc + $item_start;
 	    my $baseType = identifyType($genome_ref, $item_chr, $item_strand, $basePos);
-	    print {$baseCountFH} "$item_chr\t$basePos\t$item_strand\t$baseType\t1\t0\t$numAligns\n";
+
+	    my $roundPos = int ($basePos / 10000000);
+	    my $fh_key = $item_chr."_$roundPos";
+	    $fh_key = $baseType."_$fh_key" unless($nosplit_flag);
+
+	    unless($baseCountFHHash->{$fh_key}) {
+		my $chrfile = $baseCountDir."/basecount_$fh_key";
+		open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";
+	    }	    
+	    print {$baseCountFHHash->{$fh_key}} "$item_chr\t$basePos\t$item_strand\t1\t0\t$numAligns\n";
 	}
 	foreach my $Tloc (@Tlocs) {
 	    my $basePos = $Tloc + $item_start;
 	    my $baseType = identifyType($genome_ref, $item_chr, $item_strand, $basePos);
-	    print {$baseCountFH} "$item_chr\t$basePos\t$item_strand\t$baseType\t0\t1\t$numAligns\n";
+
+	    my $roundPos = int ($basePos / 1000000);
+	    my $fh_key = $item_chr."_$roundPos";
+	    $fh_key = $baseType."_$fh_key" unless($nosplit_flag);
+
+	    unless($baseCountFHHash->{$fh_key}) {
+		my $chrfile = $baseCountDir."/basecount_$fh_key";
+		open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";
+	    }	    
+	    print {$baseCountFHHash->{$fh_key}} "$item_chr\t$basePos\t$item_strand\t0\t1\t$numAligns\n";
 	}
-	if($numAligns > 1 && $recordDupFlag) { print {$baseCountDupFH} "$trimID\t$item_chr\t$item_start\t$item_strand\t$numAligns\n"; }	
+#	if($numAligns > 1 && $recordDupFlag) { print {$baseCountDupFH} "$trimID\t$item_chr\t$item_start\t$item_strand\t$numAligns\n"; }	
 
 	$outline .= join("\t", $itempos, join("_", @Clocs), join("_", @Tlocs), $seqLen, $numAligns);
 	$outline .= "\n";
@@ -322,7 +342,7 @@ sub onlyTheBest {
 
 # again, if bowtie ouput file exists we'll just use that, otherwise, we'll use bowtie to align the reads
 sub bowtieAlignment {
-    my ($fastqfiles_ref, $fastqfiles_p1_ref, $fastqfiles_p2_ref, $pairedend, $useBowtie, $bowtie_options, $bowtie2_options, $deleteTemp, $bowalignFile, $genomeMethFile) = @_;
+    my ($fastqfiles_ref, $fastqfiles_p1_ref, $fastqfiles_p2_ref, $pairedend, $useBowtie, $bowtie_options, $bowtie2_options, $doNotDeleteTemp, $bowalignFile, $genomeMethFile) = @_;
     unless(-e $bowalignFile) {
 	my $bowtie_system_call;
 	
@@ -338,15 +358,15 @@ sub bowtieAlignment {
 	    } else {
 		my $bowtieinfiles = join ",", @{$fastqfiles_ref};
 		$bowtie_system_call = "bowtie2 --no-unal --ff $bowtie2_options -q $genomeMethFile -U $bowtieinfiles -S $bowalignFile";
-		unlink @{$fastqfiles_ref} if $deleteTemp;
+		unlink @{$fastqfiles_ref} unless $doNotDeleteTemp;
 	    }
 	}    
 	printlog $bowtie_system_call, "\n";    
 	system($bowtie_system_call) == 0 or dielog "bowtie(2) call failed: $?";
 	
-	unlink @{$fastqfiles_ref} if $deleteTemp && !$pairedend;
-	unlink @{$fastqfiles_p1_ref} if $deleteTemp && $pairedend;
-	unlink @{$fastqfiles_p2_ref} if $deleteTemp && $pairedend;
+	unlink @{$fastqfiles_ref} unless $doNotDeleteTemp && !$pairedend;
+	unlink @{$fastqfiles_p1_ref} unless $doNotDeleteTemp && $pairedend;
+	unlink @{$fastqfiles_p2_ref} unless $doNotDeleteTemp && $pairedend;
 	
     } else {
 	printlog "Using existing bowtie alignment file: $bowalignFile\n";
@@ -383,7 +403,8 @@ sub processLine {
 
 
 sub parseBowtie {
-    my ($baseCountFile, $baseCountDupFile, $bowalignFile, $temp_dir, $result_name, $genome_file, $recordDupFlag, $deleteTemp) = @_;
+    my ($baseCountDir, #$baseCountDupDir, 
+	$bowalignFile, $temp_dir, $result_name, $genome_file, $recordDupFlag, $nosplit_flag, $doNotDeleteTemp) = @_;
 
     open(my $bowalignFH, "<", "$bowalignFile") or dielog "cannot open < $bowalignFile: $!";
     opendir(DIR, $temp_dir) || dielog "can't open directory : $!";
@@ -394,11 +415,18 @@ sub parseBowtie {
 # same-old same-old - if the file exists, we won't bother to create new ones.
     
 # my $bestFile = $temp_dir.'/'.$result_name."_bestalignments";
-    
-    unless(-e $baseCountFile)
-    {       
-	open(my $baseCountFH , ">", $baseCountFile) or dielog "cannot open > $baseCountFile: $!";
-	open(my $baseCountDupFH , ">", $baseCountDupFile) or dielog "cannot open > $baseCountDupFile: $!";
+
+    my %baseCountFHHash = ();
+#    my %baseCountDupFHHash = ();
+
+    unless(-e $baseCountDir)
+    {       	
+
+	mkdir $baseCountDir;
+#	mkdir $baseCountDupDir unless (-e $baseCountDupDir)
+
+#	open(my $baseCountFH , ">", $baseCountFile) or dielog "cannot open > $baseCountFile: $!";
+#	open(my $baseCountDupFH , ">", $baseCountDupDir) or dielog "cannot open > $baseCountDupDir: $!";
 	
 	my %chrSeqs;
 	my $header;
@@ -450,7 +478,8 @@ sub parseBowtie {
 	    if(scalar(@alignList) > 0) { $currid = $alignList[0][0]; }	    
 	    
 	    if($id ne $currid || $pairid ne $currpairid) {
-		onlyTheBest($baseCountFH, $baseCountDupFH, $paired, \%chrSeqs, \@alignList, $recordDupFlag) if(scalar(@alignList) > 0);
+		onlyTheBest(\%baseCountFHHash, $baseCountDir, #$baseCountDupDir, 
+			    $paired, \%chrSeqs, \@alignList, $recordDupFlag, $nosplit_flag) if(scalar(@alignList) > 0);
 		@alignList = ();
 		$m++;
 		if(($m % 1000000) == 0) { print("."); }
@@ -463,149 +492,195 @@ sub parseBowtie {
 	    
 	}
 	
-	onlyTheBest($baseCountFH, $baseCountDupFH, $paired, \%chrSeqs, \@alignList) if(scalar(@alignList) > 0);
+	onlyTheBest(\%baseCountFHHash, $baseCountDir,
+#$baseCountDupFH, 
+		    $paired, \%chrSeqs, \@alignList, $nosplit_flag) if(scalar(@alignList) > 0);
+
+	while (my ($key, $value) = each %baseCountFHHash )
+	{
+	    close($baseCountFHHash{$key});
+	}
+
 	
 	close($bowalignFH);
-	close($baseCountFH);
-	close($baseCountDupFH);
+#	close($baseCountFH);
+#	close($baseCountDupFH);
 #    close($bestFileFH);
 	
 	printlog("done!\n");
     } else {
 	printlog "Basecount files already exist for this output name; using these:\n";
-	printlog $baseCountFile, "\n";
+	printlog $baseCountDir, "\n";
     }
     
-    unlink $bowalignFile if $deleteTemp;
+    unlink $bowalignFile unless $doNotDeleteTemp;
 
-    return($baseCountFile, $baseCountDupFile);
+    return($baseCountDir);#, $baseCountDupDir);
 }
 
 
 sub sortBaseCounts {
     
-    my($baseCountSortFile, $baseCountFile, $baseCountDupFile, $deleteTemp, $sort_parallel, $sort_memory, $temp_dir) = @_;
-    my $baseCountDupSortFile = $baseCountDupFile; $baseCountDupSortFile =~ s/basecount/basecount_sort/;
-
-    unless(-e $baseCountSortFile) {
-	printlog "Sorting basecount file...";
-	my $sortcommand = "sort --parallel $sort_parallel -S $sort_memory -T $temp_dir -k1,1 -k2,2n -k3,3 -k7,7 $baseCountFile > $baseCountSortFile";
-	printlog "\n$sortcommand\n";
-	system("$sortcommand") == 0 or dielog "Sorting failed: $?";
-	printlog "done!\n";
+    my($baseCountDir, $baseCountSortDir, #$baseCountDupDir, 
+       $doNotDeleteTemp, $sort_parallel, $sort_memory, $temp_dir) = @_;
+#    my $baseCountDupSortFile = $baseCountDupDir; $baseCountDupSortFile =~ s/basecount/basecount_sort/;
     
-	printlog "Sorting duplicate basecount file...";
-	$sortcommand = "sort --parallel $sort_parallel -S $sort_memory -T $temp_dir -k1,1 -k2,2n -k3,3 $baseCountDupFile > $baseCountDupSortFile";
-	printlog "\n$sortcommand\n";
-	system("$sortcommand") == 0 or dielog "Sorting duplicate basecount file failed: $?";
-	printlog "done!\n";
-	
-    } else {
-	printlog "Sorted basecount file already exists for this output name; using this:\n";
-	printlog $baseCountSortFile, "\n";
+    opendir my $dirlist, $baseCountDir or dielog "Cannot open directory: $!";
+    printlog "Sorting basecount files...";
+    my @bcfiles = readdir $dirlist;
+    
+    for my $bcfile (@bcfiles) {	
+	unless($bcfile =~ m/.*_sort/ || $bcfile =~ m/^\./) {
+	    $bcfile = "$bcfile";
+	    my $sortbcfile = $bcfile."_sort";	    
+	    printlog ".";
+	    unless( -e "$baseCountSortDir/$sortbcfile") {
+		my $sortcommand = "sort --parallel $sort_parallel -S $sort_memory -k1,1 -k2,2n -k3,3 -k6,6 $baseCountDir/$bcfile > $baseCountSortDir/$sortbcfile";
+		#printlog "\n$sortcommand\n";
+		system("$sortcommand") == 0 or dielog "Sorting on $bcfile failed: $?";
+		#printlog "done!\n";
+	    }
+	    unlink "$baseCountDir/$bcfile" unless $doNotDeleteTemp;
+	    
+	}
     }
+
+    printlog ".done!\n";
+#	printlog "Sorting duplicate basecount file...";
+#	$sortcommand = "sort --parallel $sort_parallel -S $sort_memory -T $temp_dir -k1,1 -k2,2n -k3,3 $baseCountDupDir > $baseCountDupSortFile";
+#	printlog "\n$sortcommand\n";
+#	system("$sortcommand") == 0 or dielog "Sorting duplicate basecount file failed: $?";
+#	printlog "done!\n";
+	
+#    } else {
+#	printlog "Sorted basecount file already exists for this output name; using this:\n";
+#	printlog $baseCountSortFile, "\n";
+#    }
     
-    unlink $baseCountFile if $deleteTemp;
-    unlink $baseCountDupFile if $deleteTemp;
-    return($baseCountSortFile, $baseCountDupSortFile);
+    rmdir $baseCountDir unless $doNotDeleteTemp;
+#    unlink $baseCountDupDir unless $doNotDeleteTemp;
+	
+    return($baseCountDir);#, $baseCountDupSortFile);
 }
 
 
 sub nonRedundant {
-    my($baseCountSortFile, $result_dir, $result_name, $nosplit_flag, $deleteTemp) = @_;
-    printlog "Making sorted basecount non-redundant...";    
+    my($baseCountSortDir, $baseCountNRDir, $doNotDeleteTemp) = @_;
+    printlog "Making sorted basecount files non-redundant...";    
 
-    open(my $SRfh, "<", $baseCountSortFile) or dielog "cannot open < $baseCountSortFile: $!";
-
-    my $NRfileExists = 0;
-    my $NRfh;
-    my $CGNRfh;
-    my $CHGNRfh;
-    my $CHHNRfh;    
+    opendir my $dirlist, $baseCountSortDir or dielog "Cannot open directory: $!";
+    my @sbcfiles = readdir $dirlist;
     
+    for my $sbcfile (@sbcfiles) {	
+	unless($sbcfile =~ m/^\./) {	    	    
+	    my $baseCountNRFile = "$baseCountNRDir/$sbcfile"."_NR";	    	    
+	    unless(-e $baseCountNRFile) {
+		my $chr = "";
+		my $pos = -1;
+		my $strand = "";
+		my $context = "";
+		my $methCount = 0;
+		my $umethCount = 0;
+		my $nu = 0;
+		
+		open(my $SRfh, "<", "$baseCountSortDir/$sbcfile") or dielog "cannot open < $sbcfile : $!";
+		open(my $NRfh, ">", $baseCountNRFile) or dielog "cannot open > $baseCountNRFile: $!";		
 
-    if($nosplit_flag) {
-	my $baseCountNRFile = $result_dir.'/'.$result_name."_methCalls";
-	if(-e $baseCountNRFile) {$NRfileExists = 1; } else { open($NRfh, ">", $baseCountNRFile) or dielog "cannot open > $baseCountNRFile: $!"; }	    
-    } else {
-	my $baseCountNRCGFile = $result_dir.'/'.$result_name."_CG_methCalls";
-	my $baseCountNRCHGFile = $result_dir.'/'.$result_name."_CHG_methCalls";
-	my $baseCountNRCHHFile = $result_dir.'/'.$result_name."_CHH_methCalls";
-	if((-e $baseCountNRCGFile) && (-e $baseCountNRCHGFile) && (-e $baseCountNRCHHFile)) {
-	    $NRfileExists = 1; 
-	} else { 
-	    open($CGNRfh, ">", $baseCountNRCGFile) or dielog "cannot open > $baseCountNRCGFile: $!";
-	    open($CHGNRfh, ">", $baseCountNRCHGFile) or dielog "cannot open > $baseCountNRCHGFile: $!";
-	    open($CHHNRfh, ">", $baseCountNRCHHFile) or dielog "cannot open > $baseCountNRCHHFile: $!";
-	}
-
-    }
-
-    unless($NRfileExists) {
-	my $chr = "";
-	my $pos = -1;
-	my $strand = "";
-	my $context = "";
-	my $methCount = 0;
-	my $umethCount = 0;
-	my $nu = 0;
-	
-	while (<$SRfh>) {
-	    chomp;
-	    my ($lchr, $lpos, $lstrand, $lcontext, $methc, $umethc, $lnu) = split("\t");
-	    if($lchr eq $chr && $lpos == $pos && $lstrand eq $strand)
-	    {
-		$methCount += ($methc / $lnu);
-		$umethCount += ($umethc / $lnu);	    	    
-	    } else {
-		if($methCount > 0 || $umethCount > 0) {
-		    if($nosplit_flag) {
-			print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-		    } else {		
-			if($context eq "CG") {
-			    print {$CGNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-			} elsif($context eq "CHG") {
-			    print {$CHGNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-			} elsif($context eq "CHH") {
-			    print {$CHHNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
+		while (<$SRfh>) {
+		    chomp;
+		    my ($lchr, $lpos, $lstrand, $methc, $umethc, $lnu) = split("\t");
+		    if($lchr eq $chr && $lpos == $pos && $lstrand eq $strand)
+		    {
+			$methCount += ($methc / $lnu);
+			$umethCount += ($umethc / $lnu);	    	    
+		    } else {
+			if($methCount > 0 || $umethCount > 0) {			    
+			    print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
 			}
 		    }
-		}
-		$chr = $lchr; $pos = $lpos; $strand = $lstrand; $methCount = $methc; $umethCount = $umethc; $nu = $lnu; $context = $lcontext;
-	    }	    
-	}
-	
-	if($nosplit_flag) {
-	    print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-	} else {		
-	    if($context eq "CG") {
-		print {$CGNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-	    } elsif($context eq "CHG") {
-		print {$CHGNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-	    } elsif($context eq "CHH") {
-		print {$CHHNRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
+		    $chr = $lchr; $pos = $lpos; $strand = $lstrand; $methCount = $methc; $umethCount = $umethc; $nu = $lnu;
+		}	    	    	    
+		print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
+		close($NRfh);
+		close($SRfh);
 	    }
-	}
-	
-	
-	close($SRfh);
-	
-	if($nosplit_flag) {
-	    close($NRfh);
-	} else {
-	    close($CGNRfh);
-	    close($CHGNRfh);
-	    close($CHHNRfh);
+	    unlink "$baseCountSortDir/$sbcfile" unless $doNotDeleteTemp;
 	}
     }
     
-    printlog "done!\n";
-    unlink $baseCountSortFile if $deleteTemp;
-    return(1);
-}
-    
+    printlog "done!\n";    
+    rmdir $baseCountSortDir unless $doNotDeleteTemp;
 
-my $usage = "\nUsage: $0 -x GENOME_FASTA_FILE -Q SHORT_READ_FASTQ_FILE -o OUTPUT_DIR -n RESULT_NAME -t TEMPDIR --bowtie2=BOWTIE2_OPTIONS --bowtie=BOWTIE_OPTIONS --useBowtie --recordDuplication  -p -S -i -d -r --no-split";
+    return($baseCountNRDir);
+}
+
+
+sub catFiles {
+    my($catfiles, $baseCountNRDir, $result_name) = @_;
+    
+    sub sortNRF {
+#	$a =~ m/basecount_[[CG|CHG|CHH]_]?_(.*)_([0-9]*)_sort_NR/ ;
+	$a =~ m/basecount_(.*)_([0-9]*)_sort_NR/ ;
+	my ($achr, $anum) = ($1, $2);
+#	$b =~ m/basecount_[[CG|CHG|CHH]_]?_(.*)_([0-9]*)_sort_NR/ ;       
+	$b =~ m/basecount_(.*)_([0-9]*)_sort_NR/ ;       
+	my ($bchr, $bnum) = ($1, $2);
+
+	if($achr eq $bchr) {
+	    return $anum <=> $bnum;
+	} else {
+	    return $achr cmp $bchr;
+	}
+    }
+
+    my @sortedfiles = sort sortNRF @{$catfiles};
+    
+    unlink($result_name) if(-e $result_name);
+    open(my $resultFH, ">>", $result_name) or dielog("Can't open >> $result_name");
+
+    foreach (@sortedfiles) {
+	open(FILE, "$baseCountNRDir/$_") or dielog("Can't open file $baseCountNRDir/$_\n");
+	while(<FILE>) {
+	    print {$resultFH} $_;
+	}
+    }
+    return 1;
+}
+
+sub resultFiles {    
+    my($baseCountNRDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp) = @_;
+
+    printlog "Writing result files...";
+
+    opendir my $dirlist, $baseCountNRDir or dielog "Cannot open directory: $!";
+
+    if($nosplit_flag) {
+	my @nrfiles = readdir $dirlist;
+	my $result_file = $result_dir.'/'.$result_name."_methCalls";
+	catFiles(\@nrfiles, $baseCountNRDir, $result_file)
+    } else {
+	
+	my @nrfiles = grep {/^basecount_CG/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+	my $result_file = $result_dir.'/'.$result_name."_CG_methCalls";
+	catFiles(\@nrfiles, $baseCountNRDir, $result_file);
+	
+	@nrfiles = grep {/^basecount_CHG/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+	$result_file = $result_dir.'/'.$result_name."_CHG_methCalls";
+	catFiles(\@nrfiles, $baseCountNRDir, $result_file);
+	
+	@nrfiles = grep {/^basecount_CHH/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+	$result_file = $result_dir.'/'.$result_name."_CHH_methCalls";
+	catFiles(\@nrfiles, $baseCountNRDir, $result_file);	
+}
+
+    rmtree($baseCountNRDir) unless($doNotDeleteTemp);
+
+    printlog "done!\n";
+
+    return 1;
+}
+
+my $usage = "\nUsage: $0 -x GENOME_FASTA_FILE -Q SHORT_READ_FASTQ_FILE -o OUTPUT_DIR -n RESULT_NAME -t TEMPDIR --bowtie2=BOWTIE2_OPTIONS --bowtie=BOWTIE_OPTIONS --useBowtie -p -S -i --keep-all-temp --recover-from-temp --no-split";
 my $genome_file;
 my $fastq_file ;
 my $result_dir ;
@@ -615,12 +690,12 @@ my $fastq_file_p2;
 my $bowtie_options;
 my $bowtie2_options = "";
 my $noninverted;
-my $deleteTemp;
+my $doNotDeleteTemp;
 my $temp_dir;
 my $reuse_flag;
 my $nosplit_flag;
 my $useBowtie;
-my $recordDupFlag;
+my $recordDupFlag = 0;
 my $sort_parallel;
 my $sort_memory="50%";
 my $pairedend;
@@ -639,10 +714,10 @@ GetOptions(
     'bowtie2:s'    => \$bowtie2_options,
     'bowtie:s'    => \$bowtie_options,
     'useBowtie' => \$useBowtie,
-    'recordDuplication' => \$recordDupFlag,
+#    'recordDuplication' => \$recordDupFlag,
     'i'    => \$noninverted,
-    'd'    => \$deleteTemp,
-    'r'   => \$reuse_flag,
+    'keep-all-temp'    => \$doNotDeleteTemp,
+    'recover-from-temp'   => \$reuse_flag,
     'no-split' => \$nosplit_flag
 ) ;
 
@@ -652,13 +727,16 @@ $temp_dir = $result_dir.'/'."yama_tmp_$result_name" unless $temp_dir;
 rmtree($temp_dir) if(-e $temp_dir && !$reuse_flag);
 mkdir $temp_dir unless(-e $temp_dir);
 
-$logfile = $temp_dir.'/'."yama_log_$result_name";
+$logfile = $result_dir.'/'."yama_log_$result_name";
 unlink $logfile;
+
+open($logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
+select((select($logFH), $|=1)[0]);
 
 printlog "\nParameter choices:\n";
 printlog "Ok, I won't invert the second element of each pair. This could be a horrible mistake...\n" if $noninverted;
 printlog "Re-using temporary files.\n" if $reuse_flag;
-printlog "Deleting temporary files afterwards.\n" if $deleteTemp;
+printlog "Deleting temporary files afterwards.\n" unless $doNotDeleteTemp;
 
 if($fastq_file) {
     $pairedend = 0;
@@ -711,34 +789,51 @@ printlog "Sort memory usages: -S $sort_memory\n";
 # make C2T genome file
 
 my $bowalignFile =  $temp_dir.'/'.$result_name.'_meth.bowalign' ;
-my $baseCountFile = $temp_dir.'/'.$result_name."_basecount";
-my $baseCountDupFile = $baseCountFile; $baseCountDupFile =~ s/basecount/basecount_duplication/;
-my $baseCountSortFile = $baseCountFile; $baseCountSortFile =~ s/basecount/basecount_sort/;
+my $baseCountDir = $temp_dir.'/'.$result_name."_basecount";
+my $baseCountSortDir = $temp_dir.'/'.$result_name."_basecount_sort";
+my $baseCountNRDir = $temp_dir.'/'.$result_name."_basecount_nr";
+#my $baseCountDupDir = $baseCountDir; $baseCountDupDir =~ s/basecount/basecount_duplication/;
+#my $baseCountSortFile = $baseCountDir; $baseCountSortFile =~ s/basecount/basecount_sort/;
 
-unless(-e $baseCountSortFile) {    
-    unless(-e $baseCountFile) {
-	unless(-e $bowalignFile) {
-	    my $genomeMethFile = convertGenome2Meth($genome_file, $useBowtie);
-	    
+unless(-e $bowalignFile || -e $baseCountDir || -e $baseCountSortDir || -e $baseCountNRDir) {
+    my $genomeMethFile = convertGenome2Meth($genome_file, $useBowtie);
+    
 #    my @fastqfiles = ($fastq_file);
-	    
-	    my @fastqfiles_out;
-	    my @fastqfiles_out_p1;
-	    my @fastqfiles_out_p2;
-	    
-	    @fastqfiles_out = C2Tconversion(split(/\s*,\s*/, $fastq_file), 1, $temp_dir) if(!$pairedend);
-	    @fastqfiles_out_p1 = C2Tconversion(split(/\s*,\s*/, $fastq_file_p1), 1, $temp_dir) if($pairedend);
-	    @fastqfiles_out_p2 = C2Tconversion(split(/\s*,\s*/, $fastq_file_p2), $noninverted, $temp_dir) if($pairedend);
-	
-	    bowtieAlignment(\@fastqfiles_out, \@fastqfiles_out_p1, \@fastqfiles_out_p2, $pairedend, $useBowtie, $bowtie_options, $bowtie2_options, $deleteTemp, $bowalignFile, $genomeMethFile);
-	}
-	
-	parseBowtie($baseCountFile, $baseCountDupFile, $bowalignFile, $temp_dir, $result_name, $genome_file, $recordDupFlag, $deleteTemp);
-    }
-    sortBaseCounts($baseCountSortFile, $baseCountFile, $baseCountDupFile, $deleteTemp, $sort_parallel, $sort_memory, $temp_dir);
+    
+    my @fastqfiles_out;
+    my @fastqfiles_out_p1;
+    my @fastqfiles_out_p2;
+    
+    @fastqfiles_out = C2Tconversion(split(/\s*,\s*/, $fastq_file), 1, $temp_dir) if(!$pairedend);
+    @fastqfiles_out_p1 = C2Tconversion(split(/\s*,\s*/, $fastq_file_p1), 1, $temp_dir) if($pairedend);
+    @fastqfiles_out_p2 = C2Tconversion(split(/\s*,\s*/, $fastq_file_p2), $noninverted, $temp_dir) if($pairedend);
+    
+    bowtieAlignment(\@fastqfiles_out, \@fastqfiles_out_p1, \@fastqfiles_out_p2, $pairedend, $useBowtie, $bowtie_options, $bowtie2_options, $doNotDeleteTemp, $bowalignFile, $genomeMethFile);
 }
 
-nonRedundant($baseCountSortFile, $result_dir, $result_name, $nosplit_flag, $deleteTemp);
+unless(-e $baseCountSortDir || -e $baseCountNRDir) {
+    rmtree($baseCountDir) if(-e $baseCountDir);   
+    parseBowtie($baseCountDir, #$baseCountDupDir, 
+		$bowalignFile, $temp_dir, $result_name, $genome_file, $recordDupFlag, $nosplit_flag, $doNotDeleteTemp);
+}
+
+if(-e $baseCountDir || not -e $baseCountNRDir) {     
+    mkdir $baseCountSortDir unless(-e $baseCountSortDir);
+    sortBaseCounts($baseCountDir, $baseCountSortDir, #$baseCountDupDir, 
+		   $doNotDeleteTemp, $sort_parallel, $sort_memory, $temp_dir);
+}
+
+if(-e $baseCountSortDir) {
+    rmtree($baseCountNRDir) if(-e $baseCountNRDir);
+    mkdir $baseCountNRDir unless(-e $baseCountNRDir);
+    nonRedundant($baseCountSortDir, $baseCountNRDir, $doNotDeleteTemp);
+}
+
+resultFiles($baseCountNRDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp);
+
+rmtree($temp_dir) unless($doNotDeleteTemp);
+
+close($logFH);
 
 #unless(-e $baseCountNRFile) {
 
@@ -747,4 +842,4 @@ nonRedundant($baseCountSortFile, $result_dir, $result_name, $nosplit_flag, $dele
 #    print $baseCountNRFile, "\n";
 #}
 
-#rmtree $temp_dir if $deleteTemp;
+#rmtree $temp_dir unless $doNotDeleteTemp;
