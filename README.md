@@ -72,8 +72,6 @@ Optional parameters/flags
 
 -r - reuse temporary files from a previous run. YAMA will always try and do this for the genome converted file, but will by default ignore temporary files created for previous alignments. Use with caution - if a run has previously aborted, the files are likely to be incomplete.
 
--d - delete temporary files after finishing the run. At present, the files are kept by default - this behaviour will probably flip with the version 1.0.0 release.
-
 --no-split - don't split the final output files by methylation context. Defaults to off.
 
 -t - name of the temporary directory to be used by YAMA. If not given, defaults to 'myDir/yama_tmp_myOutputs'
@@ -81,6 +79,10 @@ Optional parameters/flags
 -p - the number of parallel processors used by the 'sort' system call. If not specified, will steal the number from the bowtie or bowtie2 options if it is given here.
 
 -S - the memory limit for the 'sort' system call. Defaults to 50% of available memory; see the man pages of 'sort' for options.
+
+--keep-all-temp - keep all temporary files produced by YAMA. These are likely to be large, and so use of this is generally discouraged unless debugging.
+
+--recover-from-temp - recover a crashed process from the last set of temporary files.
 
 YAMA will create a conversion of the reference genome in the same location as the reference genome file called:
 referenceGenome.fasta_methConvert (and associated bowtie2-index files)
