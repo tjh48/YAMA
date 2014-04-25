@@ -322,7 +322,7 @@ sub onlyTheBest {
 	    my $basePos = $Tloc + $item_start;
 	    my $baseType = identifyType($genome_ref, $item_chr, $item_strand, $basePos);
 
-	    my $roundPos = int ($basePos / 1000000);
+	    my $roundPos = int ($basePos / 10000000);
 	    my $fh_key = $item_chr."_$roundPos";
 	    $fh_key = $baseType."_$fh_key" unless($nosplit_flag);
 
