@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.6.8
+#YAMA 0.7.0
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -537,7 +537,10 @@ sub sortBaseCounts {
 	    unless( -e "$baseCountSortDir/$sortbcfile") {
 		my $sortcommand = "sort --parallel $sort_parallel -S $sort_memory -k1,1 -k2,2n -k3,3 -k6,6 $baseCountDir/$bcfile > $baseCountSortDir/$sortbcfile";
 		#printlog "\n$sortcommand\n";
-		system("$sortcommand") == 0 or dielog "Sorting on $bcfile failed: $?";
+		unless(system("$sortcommand") == 0) {
+		    unlink "$baseCountSortDir/$sortbcfile";
+		    dielog "Sorting on $bcfile failed: $?";
+		}		    
 		#printlog "done!\n";
 	    }
 	    unlink "$baseCountDir/$bcfile" unless $doNotDeleteTemp;
@@ -616,8 +619,8 @@ sub nonRedundant {
 
 
 sub catFiles {
-    my($catfiles, $baseCountNRDir, $result_name) = @_;
-    
+    my($catfiles, $baseCountNRDir, $result_name) = @_;   
+
     sub sortNRF {
 #	$a =~ m/basecount_[[CG|CHG|CHH]_]?_(.*)_([0-9]*)_sort_NR/ ;
 	$a =~ m/basecount_(.*)_([0-9]*)_sort_NR/ ;
@@ -643,7 +646,10 @@ sub catFiles {
 	while(<FILE>) {
 	    print {$resultFH} $_;
 	}
+	close(FILE);
     }
+
+    close($resultFH);
     return 1;
 }
 
@@ -654,23 +660,24 @@ sub resultFiles {
 
     opendir my $dirlist, $baseCountNRDir or dielog "Cannot open directory: $!";
 
+    my @nrfiles = readdir $dirlist;
+
     if($nosplit_flag) {
-	my @nrfiles = readdir $dirlist;
 	my $result_file = $result_dir.'/'.$result_name."_methCalls";
 	catFiles(\@nrfiles, $baseCountNRDir, $result_file)
     } else {
-	
-	my @nrfiles = grep {/^basecount_CG/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+
+	my @nrCGfiles = grep {/^basecount_CG/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	my $result_file = $result_dir.'/'.$result_name."_CG_methCalls";
-	catFiles(\@nrfiles, $baseCountNRDir, $result_file);
+	catFiles(\@nrCGfiles, $baseCountNRDir, $result_file);
 	
-	@nrfiles = grep {/^basecount_CHG/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+	my @nrCHGfiles = grep {/^basecount_CHG/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	$result_file = $result_dir.'/'.$result_name."_CHG_methCalls";
-	catFiles(\@nrfiles, $baseCountNRDir, $result_file);
+	catFiles(\@nrCHGfiles, $baseCountNRDir, $result_file);
 	
-	@nrfiles = grep {/^basecount_CHH/ && -f "$baseCountNRDir/$_"} readdir($dirlist);
+	my @nrCHHfiles = grep {/^basecount_CHH/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	$result_file = $result_dir.'/'.$result_name."_CHH_methCalls";
-	catFiles(\@nrfiles, $baseCountNRDir, $result_file);	
+	catFiles(\@nrCHHfiles, $baseCountNRDir, $result_file);	
 }
 
     rmtree($baseCountNRDir) unless($doNotDeleteTemp);
@@ -728,9 +735,10 @@ rmtree($temp_dir) if(-e $temp_dir && !$reuse_flag);
 mkdir $temp_dir unless(-e $temp_dir);
 
 $logfile = $result_dir.'/'."yama_log_$result_name";
-unlink $logfile;
+unlink $logfile unless $reuse_flag;
 
 open($logFH, ">>", "$logfile") or die "cannot open > $logfile: $!";
+
 select((select($logFH), $|=1)[0]);
 
 printlog "\nParameter choices:\n";
