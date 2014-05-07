@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.7.0
+#YAMA 0.7.1
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -599,9 +599,10 @@ sub nonRedundant {
 		    } else {
 			if($methCount > 0 || $umethCount > 0) {			    
 			    print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
+			    $methCount = $methc; $umethCount = $umethc;
 			}
 		    }
-		    $chr = $lchr; $pos = $lpos; $strand = $lstrand; $methCount = $methc; $umethCount = $umethc; $nu = $lnu;
+		    $chr = $lchr; $pos = $lpos; $strand = $lstrand;
 		}	    	    	    
 		print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
 		close($NRfh);
