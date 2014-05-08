@@ -497,7 +497,7 @@ sub parseBowtie {
 	    last if not defined $line;
 	    
 	    $m++;
-	    if(($m % 1000000) == 1) { print(join "\t", localtime, "\n"); }
+	    print(".") if(($m % 1000000) == 1);# { print(join "\t", localtime, "\n"); }
 
 	    chomp $line;
 	    next if $line =~ m/^@/;
