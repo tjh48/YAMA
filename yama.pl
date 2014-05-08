@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.7.1
+#YAMA 0.7.2
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -26,6 +26,7 @@ $| = 1;
 
 my $logfile;
 my $logFH;
+my $splittingLength = 10000000;
 
 sub printlog {
     my $message = pop(@_);
@@ -198,17 +199,37 @@ sub processBase {
 
     my @Cpos;
     my @Ctype;
-    my @referenceSeq;  
-  
-    @referenceSeq = split("", substr($genome_ref->{$item_chr}, $item_start - 1, $seqLen)) if ($item_strand eq "+");
-    @referenceSeq = split("", reverse_complement_IUPAC(substr($genome_ref->{$item_chr}, $item_start - 1, $seqLen))) if ($item_strand eq "-");
 
-    my @Cref = @referenceSeq[@$Clocs_ref];
-    @Cpos = @$Clocs_ref[grep{$Cref[$_] eq "C"} 0..$#Cref];	            
-    @Cpos = map {$_ = $seqLen - $_ -1} @Cpos if($item_strand eq "-");
+    my @referenceSeq;    
+    @referenceSeq = split("", substr($genome_ref->{$item_chr}, $item_start - 1, $seqLen + 2)) if ($item_strand eq "+");
+    @referenceSeq = split("", reverse_complement_IUPAC(substr($genome_ref->{$item_chr}, $item_start - 1 - 2, $seqLen + 2))) if ($item_strand eq "-");
 
-    return(@Cpos);    
-}
+#    my @Cref = @referenceSeq[@$Clocs_ref];
+#    @Cpos = @$Clocs_ref[grep{$Cref[$_] eq "C"} 0..$#Cref];    
+
+#    my $refSeq;
+#    $refSeq = substr($genome_ref->{$item_chr}, $item_start - 1, $seqLen + 2) if ($item_strand eq "+");
+#    $refSeq = reverse_complement_IUPAC(substr($genome_ref->{$item_chr}, $item_start - 1 - 2, $seqLen)) if ($item_strand eq "-");
+
+    foreach my $Cloc (@$Clocs_ref) {
+	my $Cposition;
+	$Cposition = $Cloc + $item_start if $item_strand eq "+";
+	$Cposition = $seqLen - $Cloc - 1 + $item_start if $item_strand eq "-";
+
+	print join("::", @$Clocs_ref), "\n$Cloc\t$item_chr\t$item_start\t$item_strand\t$Cposition\n" if($Cposition == 1614409);
+	if($referenceSeq[$Cloc] eq "C") {
+	    if (defined($referenceSeq[$Cloc + 1]) && $referenceSeq[$Cloc + 1] eq "G") {
+		push @Cpos, [$Cposition, "CG"];
+	    } elsif (defined($referenceSeq[$Cloc + 2]) && $referenceSeq[$Cloc + 2] eq "G") {
+		push @Cpos, [$Cposition, "CHG"];
+	    } elsif (defined($referenceSeq[$Cloc + 2])) {
+		push @Cpos, [$Cposition, "CHH"];
+	    }
+	}
+    }
+#	@Cpos = map {$_ = $seqLen - $_ -1} @Cpos if($item_strand eq "-");
+	return(@Cpos);    
+    }
 
 sub identifyType {
     
@@ -234,37 +255,42 @@ sub identifyType {
     return($cytType);    
 }
 
+sub findletter {
+    my ($letter, $string) = @_;	    
+#	    my @stringArray = split "", $string;	    
+    
+    my @letterpos;
+    
+#	    my @letterpos = grep{$stringArray[$_] eq $letter} 0..$#stringArray;
+    
+#	    my $string = 'perlmeme.org';
+#	    my $char = 'e';
+    my $offset = 0;
+    my $result = index($string, $letter, $offset);
+    while ($result != -1) {		
+	$offset = $result + 1;
+	$result = index($string, $letter, $offset);
+	push @letterpos, $result if($result != -1);
+    }
+    return(@letterpos);
+}
+
 
 # This is the subroutine for printing out the best of bowtie alignments    
 
 sub onlyTheBest {
     my ($baseCountFHHash, #$baseCountDupFHHash, 
 	$baseCountDir, 
-	# $baseCountDupDir, 
 	$paired, $genome_ref, $alignList_ref, $recordDupFlag, $nosplit_flag) = @_;    
-    my $minqual;
+
     my $outline = "";
 
-    my $useOnlyBest = 0;
-    if($useOnlyBest) {
-	my @keep = ();
-	foreach my $arrayIndex (0..(scalar(@$alignList_ref) - 1)) {	    
-	    my $qual = $alignList_ref->[$arrayIndex][1];
-	    $minqual //= $qual;	    
-	    if($qual < $minqual) {
-		@keep = ($arrayIndex);
-		$minqual = $qual;
-	    } elsif($qual == $minqual) {push @keep, $arrayIndex; }
-	}
-	@$alignList_ref = (@$alignList_ref)[@keep];
-    }
-	
     my $numAligns = scalar(@$alignList_ref);
     if($paired eq "=") {$numAligns = $numAligns / 2 ; }
     
     while(my $alignItem = shift(@$alignList_ref))
     {
-	my ($trimID, $mapqual, $item_chr, $item_strand, $item_start, $cigar) = @$alignItem;
+	my ($trimID, $item_chr, $item_strand, $item_start, $cigar) = @$alignItem;
 	my $itempos = $item_chr.":".$item_strand.":".$item_start;
 	    
 	my @cigarAction = grep length, split(/\d+/, $cigar);
@@ -289,13 +315,6 @@ sub onlyTheBest {
 
 	    if($item_strand eq "-") {$seq = reverse($seq); }
 	}
-
-	sub findletter {
-	    my ($letter, $string) = @_;	    
-	    my @stringArray = split "", $string;	    
-	    my @letterpos = grep{$stringArray[$_] eq $letter} 0..$#stringArray;
-	    return(@letterpos);
-	}
 	    
 	my @Clocs = findletter("C", $seq);
 	my @Tlocs = findletter("T", $seq);
@@ -303,39 +322,56 @@ sub onlyTheBest {
 
 	@Clocs = processBase($genome_ref, $item_chr, $item_strand, $item_start, $seqLen, \@Clocs);
 	@Tlocs = processBase($genome_ref, $item_chr, $item_strand, $item_start, $seqLen, \@Tlocs);
+	
+	my $fh_key = "";
+	my $old_key = "!";
+	my $fh;
 
 	foreach my $Cloc (@Clocs) {
-	    my $basePos = $Cloc + $item_start;
-	    my $baseType = identifyType($genome_ref, $item_chr, $item_strand, $basePos);
-
-	    my $roundPos = int ($basePos / 10000000);
-	    my $fh_key = $item_chr."_$roundPos";
+	    my @Cinfo = @$Cloc;
+	    my $basePos = $Cinfo[0];
+	    my $baseType = $Cinfo[1];		
+	    my $roundPos = int ($basePos / $splittingLength);
+	    $fh_key = $item_chr."_$roundPos";
 	    $fh_key = $baseType."_$fh_key" unless($nosplit_flag);
-
-	    unless($baseCountFHHash->{$fh_key}) {
-		my $chrfile = $baseCountDir."/basecount_$fh_key";
-		open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";
-	    }	    
-	    print {$baseCountFHHash->{$fh_key}} "$item_chr\t$basePos\t$item_strand\t1\t0\t$numAligns\n";
+	    
+	    if($fh_key ne $old_key) {
+		unless($baseCountFHHash->{$fh_key}) {
+		    my $chrfile = $baseCountDir."/basecount_$fh_key";
+		    open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";		    
+		}
+		$fh = $baseCountFHHash->{$fh_key};
+		$old_key = $fh_key;
+	    }
+   
+	    print {$fh} "$item_chr\t$basePos\t$item_strand\t1\t0\t$numAligns\n";
 	}
+
+	$fh_key = "";
+	$old_key = "!";
+
 	foreach my $Tloc (@Tlocs) {
-	    my $basePos = $Tloc + $item_start;
-	    my $baseType = identifyType($genome_ref, $item_chr, $item_strand, $basePos);
-
-	    my $roundPos = int ($basePos / 10000000);
-	    my $fh_key = $item_chr."_$roundPos";
+	    my @Tinfo = @$Tloc;
+	    my $basePos = $Tinfo[0];
+	    my $baseType = $Tinfo[1];		
+	    my $roundPos = int ($basePos / $splittingLength);
+	    $fh_key = $item_chr."_$roundPos";
 	    $fh_key = $baseType."_$fh_key" unless($nosplit_flag);
+	    
+	    if($fh_key ne $old_key) {
+		unless($baseCountFHHash->{$fh_key}) {
+		    my $chrfile = $baseCountDir."/basecount_$fh_key";
+		    open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";		    
+		}
+		$fh = $baseCountFHHash->{$fh_key};
+		$old_key = $fh_key;
+	    }
 
-	    unless($baseCountFHHash->{$fh_key}) {
-		my $chrfile = $baseCountDir."/basecount_$fh_key";
-		open($baseCountFHHash->{$fh_key}, ">", $chrfile) or dielog "cannot open > $chrfile: $!";
-	    }	    
-	    print {$baseCountFHHash->{$fh_key}} "$item_chr\t$basePos\t$item_strand\t0\t1\t$numAligns\n";
+	    print {$fh} "$item_chr\t$basePos\t$item_strand\t0\t1\t$numAligns\n";
 	}
-#	if($numAligns > 1 && $recordDupFlag) { print {$baseCountDupFH} "$trimID\t$item_chr\t$item_start\t$item_strand\t$numAligns\n"; }	
 
-	$outline .= join("\t", $itempos, join("_", @Clocs), join("_", @Tlocs), $seqLen, $numAligns);
-	$outline .= "\n";
+#	$outline .= join("\t", $itempos, join("_", @Clocs), join("_", @Tlocs), $seqLen, $numAligns);
+#	$outline .= "\n";
     }
     return $outline;
 }
@@ -381,7 +417,7 @@ sub dec2bin {
 }
 
 sub processLine {
-    my($line, $mapqual, $alignList_ref) = @_;	   
+    my($line, $alignList_ref) = @_;	   
     
     my ($id, $flag, $chr, $start, undef, $cigar, $paired, 
 	undef, undef, undef, undef, @optionals) = split("\t", $line);
@@ -392,11 +428,9 @@ sub processLine {
     
     if(($chr =~ m/G2A/ && $strand eq "-") || ($chr =~ m/C2T/ && $strand eq "\+")) {	
 	
-# select only multiple matching reads with mismatches equal to the best performing (top) reported match	    	    	    
-	
 	$chr =~ s/_G2A//;
 	$chr =~ s/_C2T//;		
-	push @$alignList_ref, [$id, $mapqual, $chr, $strand, $start, $cigar];		
+	push @$alignList_ref, [$id, $chr, $strand, $start, $cigar];		
     }
     return($alignList_ref);
 }
@@ -417,6 +451,7 @@ sub parseBowtie {
 # my $bestFile = $temp_dir.'/'.$result_name."_bestalignments";
 
     my %baseCountFHHash = ();
+    my $baseCountFHHash_ref = \%baseCountFHHash;
 #    my %baseCountDupFHHash = ();
 
     unless(-e $baseCountDir)
@@ -449,7 +484,9 @@ sub parseBowtie {
 	
 #    open(my $bestFileFH, ">", $bestFile) or dielog "cannot open > $bestFile: $!";    
 	
+	my $chrSeqs_ref = \%chrSeqs;
 	my @alignList = ();
+	my $alignList_ref = \@alignList;
 	my $m = 0;    
 	my $currid = "";
 	my $currpairid = "";
@@ -459,36 +496,37 @@ sub parseBowtie {
 	    my $line = <$bowalignFH>;
 	    last if not defined $line;
 	    
+	    $m++;
+	    if(($m % 1000000) == 1) { print(join "\t", localtime, "\n"); }
+
 	    chomp $line;
 	    next if $line =~ m/^@/;
 	    
 	    my $pairline;	
 	    my $id; 
-	    my $qual;
+	    my $chr;
 	    
-	($id, $qual, $paired) = (split("\t", $line))[0, 1, 6];
-	    
+	    ($id, $chr, $paired) = (split("\t", $line))[0, 2, 6];
+	    next if $chr =~ m/\*/;
+
 	    my $pairid = "";
 	    if($paired eq "=") {
 		$pairline = <$bowalignFH>;
-		my ($pairid, $pairqual) = (split("\t", $pairline))[0, 1];
-		$qual = $qual + $pairqual
+		my ($pairid, $pairqual) = (split("\t", $pairline))[0, 1]
 	    }
 	    
 	    if(scalar(@alignList) > 0) { $currid = $alignList[0][0]; }	    
 	    
 	    if($id ne $currid || $pairid ne $currpairid) {
-		onlyTheBest(\%baseCountFHHash, $baseCountDir, #$baseCountDupDir, 
-			    $paired, \%chrSeqs, \@alignList, $recordDupFlag, $nosplit_flag) if(scalar(@alignList) > 0);
+
+		onlyTheBest($baseCountFHHash_ref, $baseCountDir, $paired, $chrSeqs_ref, $alignList_ref, $recordDupFlag, $nosplit_flag) if(scalar(@alignList) > 0);
 		@alignList = ();
-		$m++;
-		if(($m % 1000000) == 0) { print("."); }
 		$currid = $id;
 		$currpairid = $pairid;
 	    }
 	    
-	    processLine($line, $qual, \@alignList);
-	    if($paired eq "=") { processLine($pairline, $qual, \@alignList); }
+	    processLine($line, \@alignList);
+	    if($paired eq "=") { processLine($pairline, \@alignList); }
 	    
 	}
 	
@@ -594,13 +632,12 @@ sub nonRedundant {
 		    my ($lchr, $lpos, $lstrand, $methc, $umethc, $lnu) = split("\t");
 		    if($lchr eq $chr && $lpos == $pos && $lstrand eq $strand)
 		    {
-			$methCount += ($methc / $lnu);
-			$umethCount += ($umethc / $lnu);	    	    
+			$methCount = $methCount + ($methc / $lnu);
+			$umethCount = $umethCount + ($umethc / $lnu);	    	    
 		    } else {
-			if($methCount > 0 || $umethCount > 0) {			    
-			    print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n";
-			    $methCount = $methc; $umethCount = $umethc;
-			}
+			print {$NRfh} "$chr\t$pos\t$strand\t$methCount\t$umethCount\n" if($umethCount > 0 || $methCount > 0);
+			$methCount = $methc / $lnu; 
+			$umethCount = $umethc / $lnu;
 		    }
 		    $chr = $lchr; $pos = $lpos; $strand = $lstrand;
 		}	    	    	    
