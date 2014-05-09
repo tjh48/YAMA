@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.7.2
+#YAMA 0.7.3
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -202,7 +202,10 @@ sub processBase {
 
     my @referenceSeq;    
     @referenceSeq = split("", substr($genome_ref->{$item_chr}, $item_start - 1, $seqLen + 2)) if ($item_strand eq "+");
-    @referenceSeq = split("", reverse_complement_IUPAC(substr($genome_ref->{$item_chr}, $item_start - 1 - 2, $seqLen + 2))) if ($item_strand eq "-");
+    if ($item_strand eq "-") {
+	my $maxstart = (0, $item_start - 1 -2)[0 < $item_start - 1 - 2];
+	@referenceSeq = split("", reverse_complement_IUPAC(substr($genome_ref->{$item_chr}, $maxstart, $seqLen + 2)));
+    }
 
 #    my @Cref = @referenceSeq[@$Clocs_ref];
 #    @Cpos = @$Clocs_ref[grep{$Cref[$_] eq "C"} 0..$#Cref];    
@@ -216,7 +219,7 @@ sub processBase {
 	$Cposition = $Cloc + $item_start if $item_strand eq "+";
 	$Cposition = $seqLen - $Cloc - 1 + $item_start if $item_strand eq "-";
 
-	print join("::", @$Clocs_ref), "\n$Cloc\t$item_chr\t$item_start\t$item_strand\t$Cposition\n" if($Cposition == 1614409);
+#	print join("::", @$Clocs_ref), "\n$Cloc\t$item_chr\t$item_start\t$item_strand\t$Cposition\n";
 	if($referenceSeq[$Cloc] eq "C") {
 	    if (defined($referenceSeq[$Cloc + 1]) && $referenceSeq[$Cloc + 1] eq "G") {
 		push @Cpos, [$Cposition, "CG"];
