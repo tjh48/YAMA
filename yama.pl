@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.7.3
+#YAMA 0.7.4
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -399,8 +399,9 @@ sub bowtieAlignment {
 		$bowtie_system_call = "bowtie2 --no-unal --ff $bowtie2_options -q $genomeMethFile -U $bowtieinfiles -S $bowalignFile";
 		unlink @{$fastqfiles_ref} unless $doNotDeleteTemp;
 	    }
-	}    
-	printlog $bowtie_system_call, "\n";    
+	}    	
+	printlog "$bowtie_system_call\n";    
+	$bowtie_system_call = "$bowtie_system_call >> $logfile 2>&1";
 	system($bowtie_system_call) == 0 or dielog "bowtie(2) call failed: $?";
 	
 	unlink @{$fastqfiles_ref} unless $doNotDeleteTemp && !$pairedend;

@@ -1,3 +1,8 @@
+
+Version 0.7.4
+	Added reporting of bowtie alignment stats to logfile.
+
+	
 Version 0.7.0
 	Fix critical bug in identifing CHG and CHH methylation. All versions from 0.6.7 likely affected.
 	Remove failed sort output files to allow for more automated recovery.
