@@ -400,8 +400,8 @@ sub bowtieAlignment {
 		unlink @{$fastqfiles_ref} unless $doNotDeleteTemp;
 	    }
 	}    	
-	printlog "$bowtie_system_call\n";    
 	$bowtie_system_call = "$bowtie_system_call >> $logfile 2>&1";
+	printlog "$bowtie_system_call\n";    
 	system($bowtie_system_call) == 0 or dielog "bowtie(2) call failed: $?";
 	
 	unlink @{$fastqfiles_ref} unless $doNotDeleteTemp && !$pairedend;
@@ -788,6 +788,12 @@ printlog "Ok, I won't invert the second element of each pair. This could be a ho
 printlog "Re-using temporary files.\n" if $reuse_flag;
 printlog "Deleting temporary files afterwards.\n" unless $doNotDeleteTemp;
 
+my $bowalignFile =  $temp_dir.'/'.$result_name.'_meth.bowalign' ;
+my $baseCountDir = $temp_dir.'/'.$result_name."_basecount";
+my $baseCountSortDir = $temp_dir.'/'.$result_name."_basecount_sort";
+my $baseCountNRDir = $temp_dir.'/'.$result_name."_basecount_nr";
+$sort_parallel = 1 unless($sort_parallel);
+
 if($fastq_file) {
     $pairedend = 0;
     if($fastq_file_p1 || $fastq_file_p2) {
@@ -807,7 +813,7 @@ if(!$useBowtie && $bowtie2_options && $bowtie_options) {
     $useBowtie = 0;
 }
 $useBowtie = 1 if($bowtie_options && !$bowtie2_options);
-
+    
 printlog "Using bowtie2 defaults." if(!$bowtie2_options && !$useBowtie);	
 printlog "Bowtie2 options: $bowtie2_options\n" if($bowtie2_options && !$useBowtie);
 
@@ -832,16 +838,11 @@ unless($sort_parallel) {
     }
 }
 
-$sort_parallel = 1 unless($sort_parallel);
 printlog "Sort parallelisation: --parallel $sort_parallel\n";
 printlog "Sort memory usages: -S $sort_memory\n";
 
 # make C2T genome file
 
-my $bowalignFile =  $temp_dir.'/'.$result_name.'_meth.bowalign' ;
-my $baseCountDir = $temp_dir.'/'.$result_name."_basecount";
-my $baseCountSortDir = $temp_dir.'/'.$result_name."_basecount_sort";
-my $baseCountNRDir = $temp_dir.'/'.$result_name."_basecount_nr";
 #my $baseCountDupDir = $baseCountDir; $baseCountDupDir =~ s/basecount/basecount_duplication/;
 #my $baseCountSortFile = $baseCountDir; $baseCountSortFile =~ s/basecount/basecount_sort/;
 
@@ -859,7 +860,8 @@ unless(-e $bowalignFile || -e $baseCountDir || -e $baseCountSortDir || -e $baseC
     @fastqfiles_out_p2 = C2Tconversion(split(/\s*,\s*/, $fastq_file_p2), $noninverted, $temp_dir) if($pairedend);
     
     bowtieAlignment(\@fastqfiles_out, \@fastqfiles_out_p1, \@fastqfiles_out_p2, $pairedend, $useBowtie, $bowtie_options, $bowtie2_options, $doNotDeleteTemp, $bowalignFile, $genomeMethFile);
-}
+}    
+
 
 unless(-e $baseCountSortDir || -e $baseCountNRDir) {
     rmtree($baseCountDir) if(-e $baseCountDir);   
@@ -880,6 +882,7 @@ if(-e $baseCountSortDir) {
 }
 
 resultFiles($baseCountNRDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp);
+
 
 rmtree($temp_dir) unless($doNotDeleteTemp);
 
