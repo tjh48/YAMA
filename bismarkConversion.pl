@@ -76,7 +76,7 @@ my @bismarkOutData = (["CpG", "z"], ["CHG", "x"], ["CHH", "h"]);
 foreach my $bisrow (0..@bismarkOutData-1) {
     my $peacepipe = "sed \'1,1d\' $data_dir/$bismarkOutData[$bisrow][0]_$bismarkName | cut -f 2- | sort -k2,2n -k3,3n -k4,4 | uniq -c | 
 awk 'BEGIN {strand = \"\"; chr = \"\"; base = 0; umeth = 0; meth = 0}
-{if(\$3 == chr && \$4 == base && \$2 == strand) {if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth += \$1} else {meth += \$1}} else {if(chr != \"\") {print chr \"\t\" base \"\t\" strand \"\t\" meth \"\t\" umeth}; strand = \$2; chr = \$3; base = \$4; if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth = \$1; meth = 0} else {meth = \$1; umeth = 0}}} END {print chr \"\t\" base \"\t\" strand \"\t\" meth \"\t\" umeth}' > $result_dir/$bismarkOutData[$bisrow][0]_$result_name\n";
+{if(\$3 == chr && \$4 == base) {if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth += \$1} else {meth += \$1}} else {if(chr != \"\") {print chr \"\t\" base \"\t*\t\" meth \"\t\" umeth}; strand = \$2; chr = \$3; base = \$4; if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth = \$1; meth = 0} else {meth = \$1; umeth = 0}}} END {print chr \"\t\" base \"\t*\t\" meth \"\t\" umeth}' > $result_dir/$bismarkOutData[$bisrow][0]_$result_name\n";
 system("$peacepipe");
 }
 
