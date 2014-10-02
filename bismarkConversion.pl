@@ -49,8 +49,8 @@ sub dielog {
 my $result_dir ;
 my $result_name;
 my $localSortFlag;
-my $sort_parallel = 1;
-my $sort_memory="50%";
+#my $sort_parallel = 1;
+#my $sort_memory="50%";
 my $bismarkName;
 my $data_dir;
 
@@ -59,9 +59,9 @@ GetOptions(
     'bismarkName:s'    => \$bismarkName,
     'd:s'    => \$data_dir,
     'o:s'    => \$result_dir,
-    'n:s'    => \$result_name,
-    'p:i'    => \$sort_parallel,
-    'S:s'    => \$sort_memory
+    'n:s'    => \$result_name
+#    'p:i'    => \$sort_parallel,
+#    'S:s'    => \$sort_memory
 ) ;
 
 $result_dir = "." unless $result_dir;
