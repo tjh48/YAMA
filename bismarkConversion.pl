@@ -79,7 +79,7 @@ foreach my $bisrow (0..@bismarkOutData-1) {
     closedir(DIR);
     my $joinFiles = join " ", map { "$data_dir/" . $_ } @files;
     
-    my $peacepipe = "awk  'BEGIN {OFS = \"\\t\"} ; {if(FILENAME \~ /$bismarkOutData[$bisrow][0]_.*(OT|CTOT)_$bismarkName/) {strand = \"+\"} else {strand = \"-\"}; if(NR > 1) print \$2,\$3,\$4,\$5,strand; }' $joinFiles | cat | sort -k2,2 -k6,6 -k3,3n -k4,4 | uniq -c | 
+    my $peacepipe = "awk  'BEGIN {OFS = \"\\t\"} ; {if(FILENAME \~ /$bismarkOutData[$bisrow][0]_.*(OT|CTOT)_$bismarkName/) {strand = \"+\"} else {strand = \"-\"}; if(FNR > 1) print \$2,\$3,\$4,\$5,strand; }' $joinFiles | cat | sort -k2,2 -k6,6 -k3,3n -k4,4 | uniq -c | 
 awk 'BEGIN {OFS = \"\\t\"; strand = \"\"; chr = \"\"; base = 0; umeth = 0; meth = 0}
 {if(\$3 == chr && \$4 == base) {if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth += \$1} else {meth += \$1}} else {if(chr != \"\") {print chr, base, strand, meth, umeth}; strand = \$6; chr = \$3; base = \$4; if(\$5 == \"$bismarkOutData[$bisrow][1]\") {umeth = \$1; meth = 0} else {meth = \$1; umeth = 0}}} END {print chr, base, strand, meth, umeth}' > $result_dir/$bismarkOutData[$bisrow][0]_$result_name\n";
     
