@@ -1,6 +1,6 @@
 #!/usr/bin/env/perl
 
-#YAMA 0.7.4
+#YAMA 0.7.5
 
 # Copyright (C) 2009 Thomas J. Hardcastle <tjh48@cam.ac.uk>
 
@@ -284,7 +284,7 @@ sub findletter {
 sub onlyTheBest {
     my ($baseCountFHHash, #$baseCountDupFHHash, 
 	$baseCountDir, 
-	$paired, $genome_ref, $alignList_ref, $recordDupFlag, $nosplit_flag) = @_;    
+	$paired, $genome_ref, $alignList_ref, $recordDupFlag, $nosplit_flag, $idnum) = @_;    
 
     my $outline = "";
 
@@ -347,7 +347,7 @@ sub onlyTheBest {
 		$old_key = $fh_key;
 	    }
    
-	    print {$fh} "$item_chr\t$basePos\t$item_strand\t1\t0\t$numAligns\n";
+	    print {$fh} "$idnum\t$item_start\t$seqLen\t$item_chr\t$basePos\t$item_strand\t1\t0\t$numAligns\n";
 	}
 
 	$fh_key = "";
@@ -370,7 +370,7 @@ sub onlyTheBest {
 		$old_key = $fh_key;
 	    }
 
-	    print {$fh} "$item_chr\t$basePos\t$item_strand\t0\t1\t$numAligns\n";
+	    print {$fh} "$idnum\t$item_start\t$seqLen\t$item_chr\t$basePos\t$item_strand\t0\t1\t$numAligns\n";
 	}
 
 #	$outline .= join("\t", $itempos, join("_", @Clocs), join("_", @Tlocs), $seqLen, $numAligns);
@@ -495,6 +495,7 @@ sub parseBowtie {
 	my $currid = "";
 	my $currpairid = "";
 	my $paired;
+	my $idnum = 0;
 	
 	while () {
 	    my $line = <$bowalignFH>;
@@ -523,10 +524,11 @@ sub parseBowtie {
 	    
 	    if($id ne $currid || $pairid ne $currpairid) {
 
-		onlyTheBest($baseCountFHHash_ref, $baseCountDir, $paired, $chrSeqs_ref, $alignList_ref, $recordDupFlag, $nosplit_flag) if(scalar(@alignList) > 0);
+		onlyTheBest($baseCountFHHash_ref, $baseCountDir, $paired, $chrSeqs_ref, $alignList_ref, $recordDupFlag, $nosplit_flag, $idnum) if(scalar(@alignList) > 0);
 		@alignList = ();
 		$currid = $id;
 		$currpairid = $pairid;
+		$idnum++;
 	    }
 	    
 	    processLine($line, \@alignList);
@@ -534,9 +536,7 @@ sub parseBowtie {
 	    
 	}
 	
-	onlyTheBest(\%baseCountFHHash, $baseCountDir,
-#$baseCountDupFH, 
-		    $paired, \%chrSeqs, \@alignList, $nosplit_flag) if(scalar(@alignList) > 0);
+	onlyTheBest($baseCountFHHash_ref, $baseCountDir, $paired, $chrSeqs_ref, $alignList_ref, $recordDupFlag, $nosplit_flag, $idnum) if(scalar(@alignList) > 0);
 
 	while (my ($key, $value) = each %baseCountFHHash )
 	{
@@ -577,7 +577,7 @@ sub sortBaseCounts {
 	    my $sortbcfile = $bcfile."_sort";	    
 	    printlog ".";
 	    unless( -e "$baseCountSortDir/$sortbcfile") {
-		my $sortcommand = "sort --parallel $sort_parallel -S $sort_memory -k1,1 -k2,2n -k3,3 -k6,6 $baseCountDir/$bcfile > $baseCountSortDir/$sortbcfile";
+		my $sortcommand = "sort --parallel $sort_parallel -S $sort_memory -k4,4 -k5,5n -k6,6 -k9,9 $baseCountDir/$bcfile > $baseCountSortDir/$sortbcfile";
 		#printlog "\n$sortcommand\n";
 		unless(system("$sortcommand") == 0) {
 		    unlink "$baseCountSortDir/$sortbcfile";
@@ -633,7 +633,7 @@ sub nonRedundant {
 
 		while (<$SRfh>) {
 		    chomp;
-		    my ($lchr, $lpos, $lstrand, $methc, $umethc, $lnu) = split("\t");
+		    my ($idnum, $read_start, $read_len, $lchr, $lpos, $lstrand, $methc, $umethc, $lnu) = split("\t");
 		    if($lchr eq $chr && $lpos == $pos && $lstrand eq $strand)
 		    {
 			$methCount = $methCount + ($methc / $lnu);
@@ -649,12 +649,12 @@ sub nonRedundant {
 		close($NRfh);
 		close($SRfh);
 	    }
-	    unlink "$baseCountSortDir/$sbcfile" unless $doNotDeleteTemp;
+	    #unlink "$baseCountSortDir/$sbcfile" unless $doNotDeleteTemp;
 	}
     }
     
     printlog "done!\n";    
-    rmdir $baseCountSortDir unless $doNotDeleteTemp;
+    #rmdir $baseCountSortDir unless $doNotDeleteTemp;
 
     return($baseCountNRDir);
 }
@@ -665,10 +665,10 @@ sub catFiles {
 
     sub sortNRF {
 #	$a =~ m/basecount_[[CG|CHG|CHH]_]?_(.*)_([0-9]*)_sort_NR/ ;
-	$a =~ m/basecount_(.*)_([0-9]*)_sort_NR/ ;
+	$a =~ m/basecount_(.*)_([0-9]*)_sort[_NR]*?/ ;
 	my ($achr, $anum) = ($1, $2);
 #	$b =~ m/basecount_[[CG|CHG|CHH]_]?_(.*)_([0-9]*)_sort_NR/ ;       
-	$b =~ m/basecount_(.*)_([0-9]*)_sort_NR/ ;       
+	$b =~ m/basecount_(.*)_([0-9]*)_sort[_NR]*?/ ;       
 	my ($bchr, $bnum) = ($1, $2);
 
 	if($achr eq $bchr) {
@@ -696,30 +696,49 @@ sub catFiles {
 }
 
 sub resultFiles {    
-    my($baseCountNRDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp) = @_;
+    my($baseCountNRDir, $baseCountSortDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp) = @_;
 
     printlog "Writing result files...";
 
     opendir my $dirlist, $baseCountNRDir or dielog "Cannot open directory: $!";
-
     my @nrfiles = readdir $dirlist;
+
+    opendir my $sortdirlist, $baseCountSortDir or dielog "Cannot open directory: $!";
+    my @sortfiles = readdir $sortdirlist;
 
     if($nosplit_flag) {
 	my $result_file = $result_dir.'/'.$result_name."_methCalls";
-	catFiles(\@nrfiles, $baseCountNRDir, $result_file)
+	catFiles(\@nrfiles, $baseCountNRDir, $result_file);
+	    
+	$result_file = $result_dir.'/'.$result_name."_methCalls_redundantID";
+	catFiles(\@sortfiles, $baseCountSortDir, $result_file);		
+
     } else {
 
 	my @nrCGfiles = grep {/^basecount_CG/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	my $result_file = $result_dir.'/'.$result_name."_CG_methCalls";
 	catFiles(\@nrCGfiles, $baseCountNRDir, $result_file);
+
+	my @stCGfiles = grep {/^basecount_CG/ && -f "$baseCountSortDir/$_"} @sortfiles;
+	$result_file = $result_dir.'/'.$result_name."_CG_methCalls_redundantID";
+	catFiles(\@stCGfiles, $baseCountSortDir, $result_file);		
 	
 	my @nrCHGfiles = grep {/^basecount_CHG/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	$result_file = $result_dir.'/'.$result_name."_CHG_methCalls";
 	catFiles(\@nrCHGfiles, $baseCountNRDir, $result_file);
+
+	my @stCHGfiles = grep {/^basecount_CHG/ && -f "$baseCountSortDir/$_"} @sortfiles;
+	$result_file = $result_dir.'/'.$result_name."_CHG_methCalls_redundantID";
+	catFiles(\@stCHGfiles, $baseCountSortDir, $result_file);		
 	
 	my @nrCHHfiles = grep {/^basecount_CHH/ && -f "$baseCountNRDir/$_"} @nrfiles;
 	$result_file = $result_dir.'/'.$result_name."_CHH_methCalls";
 	catFiles(\@nrCHHfiles, $baseCountNRDir, $result_file);	
+
+	my @stCHHfiles = grep {/^basecount_CHH/ && -f "$baseCountSortDir/$_"} @sortfiles;
+	$result_file = $result_dir.'/'.$result_name."_CHH_methCalls_redundantID";
+	catFiles(\@stCHHfiles, $baseCountSortDir, $result_file);		
+
 }
 
     rmtree($baseCountNRDir) unless($doNotDeleteTemp);
@@ -881,7 +900,7 @@ if(-e $baseCountSortDir) {
     nonRedundant($baseCountSortDir, $baseCountNRDir, $doNotDeleteTemp);
 }
 
-resultFiles($baseCountNRDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp);
+resultFiles($baseCountNRDir, $baseCountSortDir, $result_dir, $result_name, $nosplit_flag, $doNotDeleteTemp);
 
 
 rmtree($temp_dir) unless($doNotDeleteTemp);

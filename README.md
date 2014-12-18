@@ -103,9 +103,7 @@ myOutputs_basecount_sort_duplication	Identical to the _basecount_duplication fil
 The output files are (by default)
 
 myOutputs_CG_methCalls
-
 myOutputs_CHG_methCalls
-
 myOutputs_CHH_methCalls
 
 
